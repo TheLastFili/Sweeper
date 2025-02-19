@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Time Tracker</h1>
+            <div class="date-controls">
+                <button onclick="previousDay()">Previous Day</button>
+                <span id="currentDate"></span>
+                <button onclick="nextDay()">Next Day</button>
+            </div>
+        </header>
+
+        <div class="controls">
+            <select id="themeSelector" class="theme-select">
+                <option value="light">Light Theme</option>
+                <option value="dark">Dark Theme</option>
+                <option value="blue">Blue Theme</option>
+            </select>
+            <button onclick="generateReport()" class="report-btn">Generate Report</button>
+            <button onclick="addTimer()" class="add-timer-btn">Add Timer</button>
+        </div>
+
+        <main>
+            <div id="timers" class="timers-container"></div>
+        </main>
+    </div>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
