@@ -45,14 +45,27 @@ function nextDay() {
 // Theme functions
 function setupThemeSelector() {
     const selector = document.getElementById('themeSelector');
+
     Object.keys(themes).forEach(theme => {
         const option = document.createElement('option');
         option.value = theme;
         option.textContent = theme.charAt(0).toUpperCase() + theme.slice(1);
         selector.appendChild(option);
     });
-    selector.addEventListener('change', applyTheme);
+
+    // Load saved theme from localStorage
+    const savedTheme = localStorage.getItem('selectedTheme');
+    if (savedTheme && themes[savedTheme]) {
+        selector.value = savedTheme;
+        applyTheme();
+    }
+
+    selector.addEventListener('change', () => {
+        localStorage.setItem('selectedTheme', selector.value);
+        applyTheme();
+    });
 }
+
 
 function applyTheme() {
     const theme = themes[document.getElementById('themeSelector').value];
@@ -70,17 +83,20 @@ async function fetchTimers() {
 }
 
 async function saveTimer(timer) {
+    console.log("Saving timer:", timer);
+
     await fetch('/api/timer', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             date: currentDate,
             timer: timer
         })
     });
+
+    console.log("Timer saved!");
 }
+
 
 async function startTimerAPI(index) {
     await fetch('/api/timer/start', {
@@ -111,40 +127,62 @@ async function stopTimerAPI(index) {
 
 // Timer management functions
 async function loadTimers() {
-    timers = await fetchTimers();
-    renderTimers();
+    console.log("Loading timers for:", currentDate);
+    timers = [];  // Ensure it's empty before loading
+    timers = await fetchTimers(); // Fetch from API
+    console.log("Timers received:", timers);
+    renderTimers(); // Now render clean timers
 }
 
+
+
+
 async function addTimer() {
-    const newTimer = { 
-        name: "New Timer", 
-        start: null, 
+    console.log("Adding new timer...");
+
+    const newTimer = {
+        id: crypto.randomUUID(),  // Generate unique ID
+        name: "New Timer",
+        start: null,
         elapsed: 0,
-        lastStarted: null 
+        lastStarted: null
     };
+
     timers.push(newTimer);
+
     await saveTimer(newTimer);
-    renderTimers();
+    loadTimers();  // Reload UI to ensure correct state
 }
+
+
 
 async function startTimer(index) {
     if (!timers[index].start) {
-        const now = Date.now();
+        const now = Date.now(); // Store absolute timestamp
+
         timers[index].start = now;
-        timers[index].lastStarted = now;
+        timers[index].lastStarted = now; // Update last started time immediately
+
         await startTimerAPI(index);
         updateElapsedTime(index);
-    }
-}
-
-async function stopTimer(index) {
-    if (timers[index].start) {
-        const response = await stopTimerAPI(index);
-        timers[index].elapsed = response.elapsed;
-        timers[index].start = null;
         renderTimers();
     }
 }
+
+
+async function stopTimer(index) {
+    if (timers[index].start) {
+        const now = Date.now();
+        timers[index].elapsed += Math.floor((now - timers[index].start) / 1000); // Update elapsed before stopping
+        timers[index].start = null;
+
+        const response = await stopTimerAPI(index);
+        timers[index].elapsed = response.elapsed;
+
+        renderTimers();
+    }
+}
+
 
 async function resetTimer(index) {
     timers[index].elapsed = 0;
@@ -171,7 +209,7 @@ async function deleteTimer(index) {
 async function copyToNextDay(index) {
     const nextDate = new Date(new Date(currentDate).getTime() + 86400000)
         .toISOString().split("T")[0];
-    
+
     const timerCopy = {
         name: timers[index].name,
         start: null,
@@ -246,16 +284,22 @@ function updateElapsedTime(index) {
     if (timers[index].start) {
         const elapsedElement = document.getElementsByClassName("elapsed-time")[index];
         const fifteenMinElement = document.getElementsByClassName("fifteen-min-time")[index];
+
         const update = () => {
             if (!timers[index].start) return;
-            const now = Math.floor((Date.now() - timers[index].start) / 1000) + timers[index].elapsed;
-            elapsedElement.textContent = `Elapsed: ${formatTime(now)}`;
-            fifteenMinElement.textContent = `Billable Time: ${format15MinuteTime(now)}`;
+
+            const now = Date.now();
+            const elapsedTime = Math.floor((now - timers[index].start) / 1000) + timers[index].elapsed;
+
+            elapsedElement.textContent = `Elapsed: ${formatTime(elapsedTime)}`;
+            fifteenMinElement.textContent = `Billable Time: ${format15MinuteTime(elapsedTime)}`;
+
             requestAnimationFrame(update);
         };
         update();
     }
 }
+
 
 function generateReport() {
     fetch('/api/report')
@@ -265,11 +309,13 @@ function generateReport() {
             Object.entries(report).forEach(([date, dayTimers]) => {
                 reportText += `Date: ${date}\n`;
                 dayTimers.forEach(timer => {
-                    reportText += `  ${timer.name} - ${format15MinuteTime(timer.elapsed)}\n`;
+                    if (timer.elapsed > 0) {  // Only include meaningful timers
+                        reportText += `  ${timer.name} - ${format15MinuteTime(timer.elapsed)}\n`;
+                    }
                 });
                 reportText += '\n';
             });
-            
+
             // Create and trigger download
             const blob = new Blob([reportText], { type: 'text/plain' });
             const url = window.URL.createObjectURL(blob);
